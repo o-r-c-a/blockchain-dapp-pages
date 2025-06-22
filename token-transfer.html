@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ERC20 Token Transfer</title>
+    <title>Token Transfer</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.1/ethers.umd.min.js"></script>
     <style>
         body {
@@ -20,247 +20,172 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             text-align: center;
         }
-        h1 {
-            color: #333;
-            margin-bottom: 30px;
-        }
-        .input-group {
-            margin: 20px 0;
-            text-align: left;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        input {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 14px;
-            box-sizing: border-box;
-        }
         button {
-            background-color: #FF9800;
+            background-color: #dc3545;
             color: white;
-            padding: 15px 30px;
             border: none;
+            padding: 15px 30px;
+            font-size: 16px;
             border-radius: 5px;
             cursor: pointer;
-            font-size: 16px;
-            margin: 10px;
+            margin: 20px 0;
         }
         button:hover {
-            background-color: #F57C00;
+            background-color: #c82333;
         }
         button:disabled {
-            background-color: #cccccc;
+            background-color: #6c757d;
             cursor: not-allowed;
         }
         .result {
             margin-top: 20px;
             padding: 15px;
-            background-color: #fff3e0;
+            background-color: #e9ecef;
             border-radius: 5px;
-            border: 1px solid #FF9800;
-        }
-        .success {
-            background-color: #e8f5e8;
-            border: 1px solid #4CAF50;
-            color: #2e7d32;
+            font-size: 16px;
         }
         .error {
-            background-color: #ffe8e8;
-            border: 1px solid #ff4444;
-            color: #cc0000;
+            color: #dc3545;
+            background-color: #f8d7da;
         }
-        .loading {
-            color: #666;
-            font-style: italic;
+        .success {
+            color: #155724;
+            background-color: #d4edda;
         }
         .warning {
-            background-color: #fff3cd;
-            border: 1px solid #ffc107;
             color: #856404;
+            background-color: #fff3cd;
+        }
+        .info {
+            font-size: 14px;
+            color: #6c757d;
             margin-bottom: 20px;
         }
-        .recipient-info {
-            background-color: #e3f2fd;
-            border: 1px solid #2196F3;
-            color: #1565c0;
-            margin-bottom: 20px;
-            font-size: 14px;
+        .tx-hash {
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 12px;
+            margin-top: 10px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>ERC20 Token Transfer</h1>
-        <p>Transfer 10 WhitelistToken (WTK) to the specified address.</p>
-        
-        <div class="result recipient-info">
-            <strong>Recipient Address:</strong><br>
-            0x15433DA387451F9dE4565280C85506CB71aF9376<br>
-            <strong>Amount:</strong> 10 tokens
+        <h1>WhitelistToken Transfer</h1>
+        <div class="info">
+            <p>Contract Address: 0x2A8013D693A34e2B6B1ef0d5314BE5B6BEc86D88</p>
+            <p>Recipient: 0x15433DA387451F9dE4565280C85506CB71aF9376</p>
+            <p>Amount: 10 tokens</p>
         </div>
         
-        <div class="input-group">
-            <label for="contractAddress">Contract Address:</label>
-            <input type="text" id="contractAddress" placeholder="Enter your WhitelistToken contract address">
-        </div>
+        <button id="transferTokens" onclick="transferTokens()">
+            Transfer 10 Tokens
+        </button>
         
-        <button id="transferBtn" onclick="transferTokens()">Transfer 10 Tokens</button>
-        
-        <div id="result" style="display: none;"></div>
-        
-        <div class="result warning">
-            <strong>Important:</strong> Make sure the recipient address (0x15433DA387451F9dE4565280C85506CB71aF9376) is whitelisted in your contract before attempting the transfer. The transfer will fail if the recipient is not whitelisted.
-        </div>
+        <div id="result" class="result" style="display: none;"></div>
     </div>
 
     <script>
-        // ERC20 ABI - need transfer, balanceOf, name, symbol, decimals functions
+        // Contract details
+        const TOKEN_CONTRACT_ADDRESS = "0x2A8013D693A34e2B6B1ef0d5314BE5B6BEc86D88";
+        const RECIPIENT_ADDRESS = "0x15433DA387451F9dE4565280C85506CB71aF9376";
+        const TRANSFER_AMOUNT = "10"; // 10 tokens
+        
+        // ERC20 ABI (only the functions we need)
         const ERC20_ABI = [
             "function transfer(address to, uint256 amount) returns (bool)",
-            "function balanceOf(address owner) view returns (uint256)",
-            "function name() view returns (string)",
+            "function decimals() view returns (uint8)",
             "function symbol() view returns (string)",
-            "function decimals() view returns (uint8)"
+            "function balanceOf(address owner) view returns (uint256)"
         ];
 
-        // Fixed recipient address and amount
-        const RECIPIENT_ADDRESS = "0x15433DA387451F9dE4565280C85506CB71aF9376";
-        const TRANSFER_AMOUNT = "10";
-
-        // Check if MetaMask is installed
-        if (typeof window.ethereum !== 'undefined') {
-            console.log('MetaMask is installed!');
-        } else {
-            alert('MetaMask is not installed. Please install MetaMask to use this application.');
-        }
-
         async function transferTokens() {
-            const button = document.getElementById('transferBtn');
+            const button = document.getElementById('transferTokens');
             const resultDiv = document.getElementById('result');
-            const contractAddress = document.getElementById('contractAddress').value.trim();
             
             try {
-                // Validate contract address
-                if (!contractAddress) {
-                    throw new Error('Please enter a contract address');
-                }
-                
-                if (!ethers.isAddress(contractAddress)) {
-                    throw new Error('Invalid contract address format');
-                }
-
-                // Disable button and show loading
+                // Disable button during transaction
                 button.disabled = true;
-                button.textContent = 'Processing Transfer...';
-                resultDiv.style.display = 'block';
-                resultDiv.className = 'result loading';
-                resultDiv.innerHTML = 'Preparing transaction...';
-
-                // Request account access
-                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-                const userAddress = accounts[0];
-
-                // Create provider and signer
+                button.textContent = 'Processing...';
+                
+                // Check if MetaMask is installed
+                if (typeof window.ethereum === 'undefined') {
+                    throw new Error('MetaMask is not installed. Please install MetaMask to use this feature.');
+                }
+                
+                // Connect to provider and get signer
                 const provider = new ethers.BrowserProvider(window.ethereum);
+                
+                // Request account access if needed
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                
                 const signer = await provider.getSigner();
+                const userAddress = await signer.getAddress();
                 
-                // Check if we're on Holesky network (chain ID 17000)
-                const network = await provider.getNetwork();
-                if (network.chainId !== 17000n) {
-                    throw new Error('Please switch to Holesky testnet (Chain ID: 17000)');
-                }
-
-                // Create contract instance
-                const contract = new ethers.Contract(contractAddress, ERC20_ABI, signer);
-
-                // Get token information
-                resultDiv.innerHTML = 'Getting token information...';
-                const [name, symbol, decimals, balanceBefore] = await Promise.all([
-                    contract.name(),
-                    contract.symbol(),
-                    contract.decimals(),
-                    contract.balanceOf(userAddress)
-                ]);
-
-                // Calculate transfer amount in token units
-                const transferAmountWei = ethers.parseUnits(TRANSFER_AMOUNT, decimals);
+                // Create contract instance with signer
+                const contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, ERC20_ABI, signer);
                 
-                // Check if user has enough balance
-                if (balanceBefore < transferAmountWei) {
-                    throw new Error(`Insufficient balance. You have ${ethers.formatUnits(balanceBefore, decimals)} ${symbol}, but need ${TRANSFER_AMOUNT} ${symbol}`);
-                }
-
+                // Get token decimals and symbol
+                const decimals = await contract.decimals();
+                const symbol = await contract.symbol();
+                
+                // Convert amount to proper units (accounting for decimals)
+                const amount = ethers.parseUnits(TRANSFER_AMOUNT, decimals);
+                
+                // Show preparing transaction message
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result warning';
+                resultDiv.innerHTML = 'Preparing transaction... Please confirm in MetaMask.';
+                
                 // Execute transfer
-                resultDiv.innerHTML = 'Executing transfer transaction...';
-                const tx = await contract.transfer(RECIPIENT_ADDRESS, transferAmountWei);
+                const tx = await contract.transfer(RECIPIENT_ADDRESS, amount);
                 
-                resultDiv.innerHTML = `Transaction submitted. Hash: ${tx.hash}<br>Waiting for confirmation...`;
+                // Show transaction submitted message
+                resultDiv.className = 'result warning';
+                resultDiv.innerHTML = `
+                    <div>Transaction submitted! Waiting for confirmation...</div>
+                    <div class="tx-hash">Transaction Hash: ${tx.hash}</div>
+                `;
                 
-                // Wait for transaction confirmation
+                // Wait for transaction to be mined
                 const receipt = await tx.wait();
                 
-                // Get balance after transfer
-                const balanceAfter = await contract.balanceOf(userAddress);
-
-                // Display success result
+                // Show success message
                 resultDiv.className = 'result success';
                 resultDiv.innerHTML = `
-                    <h3>Transfer Successful!</h3>
-                    <p><strong>Token:</strong> ${name} (${symbol})</p>
-                    <p><strong>Amount Transferred:</strong> ${TRANSFER_AMOUNT} ${symbol}</p>
-                    <p><strong>To Address:</strong> ${RECIPIENT_ADDRESS}</p>
-                    <p><strong>Transaction Hash:</strong> <a href="https://holesky.etherscan.io/tx/${tx.hash}" target="_blank">${tx.hash}</a></p>
-                    <p><strong>Block Number:</strong> ${receipt.blockNumber}</p>
-                    <p><strong>Gas Used:</strong> ${receipt.gasUsed.toString()}</p>
-                    <p><strong>Your Balance Before:</strong> ${ethers.formatUnits(balanceBefore, decimals)} ${symbol}</p>
-                    <p><strong>Your Balance After:</strong> ${ethers.formatUnits(balanceAfter, decimals)} ${symbol}</p>
+                    <div><strong>Transfer Successful!</strong></div>
+                    <div>Transferred: ${TRANSFER_AMOUNT} ${symbol}</div>
+                    <div>From: ${userAddress}</div>
+                    <div>To: ${RECIPIENT_ADDRESS}</div>
+                    <div class="tx-hash">Transaction Hash: ${tx.hash}</div>
+                    <div>Block: ${receipt.blockNumber}</div>
                 `;
-
+                
             } catch (error) {
-                console.error('Error:', error);
-                resultDiv.className = 'result error';
+                console.error('Error transferring tokens:', error);
                 
                 let errorMessage = error.message;
                 
-                // Handle specific error cases
-                if (error.code === 'CALL_EXCEPTION') {
-                    errorMessage = 'Transaction failed. This could be because:<br>' +
-                                 '• The recipient is not whitelisted in your contract<br>' +
-                                 '• You don\'t have enough tokens<br>' +
-                                 '• The contract address is incorrect';
-                } else if (error.code === 'ACTION_REJECTED') {
-                    errorMessage = 'Transaction was rejected by user';
-                } else if (error.code === 'INSUFFICIENT_FUNDS') {
-                    errorMessage = 'Insufficient ETH for gas fees';
+                // Handle common error scenarios
+                if (error.code === 4001) {
+                    errorMessage = 'Transaction rejected by user.';
+                } else if (error.message.includes('insufficient funds')) {
+                    errorMessage = 'Insufficient funds for transaction.';
+                } else if (error.message.includes('Recipient not whitelisted')) {
+                    errorMessage = 'Recipient address is not whitelisted.';
+                } else if (error.message.includes('transfer amount exceeds balance')) {
+                    errorMessage = 'Transfer amount exceeds your token balance.';
                 }
                 
-                resultDiv.innerHTML = `<strong>Transfer Failed:</strong><br>${errorMessage}`;
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `Error: ${errorMessage}`;
             } finally {
                 // Re-enable button
                 button.disabled = false;
                 button.textContent = 'Transfer 10 Tokens';
             }
         }
-
-        // Auto-connect if already connected
-        window.addEventListener('load', async () => {
-            if (window.ethereum) {
-                try {
-                    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-                    if (accounts.length > 0) {
-                        console.log('Connected to MetaMask:', accounts[0]);
-                    }
-                } catch (error) {
-                    console.error('Error checking connection:', error);
-                }
-            }
-        });
     </script>
 </body>
 </html>
