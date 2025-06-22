@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Holesky Block Height</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.1/ethers.umd.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e8f5e8;
+            border-radius: 5px;
+            border: 1px solid #4CAF50;
+        }
+        .error {
+            background-color: #ffe8e8;
+            border: 1px solid #ff4444;
+            color: #cc0000;
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Holesky Testnet Block Height</h1>
+        <p>Click the button below to get the current block height on the Holesky testnet.</p>
+        
+        <button id="getBlockBtn" onclick="getCurrentBlockHeight()">Get Current Block Height</button>
+        
+        <div id="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        // Check if MetaMask is installed
+        if (typeof window.ethereum !== 'undefined') {
+            console.log('MetaMask is installed!');
+        } else {
+            alert('MetaMask is not installed. Please install MetaMask to use this application.');
+        }
+
+        async function getCurrentBlockHeight() {
+            const button = document.getElementById('getBlockBtn');
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                // Disable button and show loading
+                button.disabled = true;
+                button.textContent = 'Loading...';
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result loading';
+                resultDiv.innerHTML = 'Fetching current block height...';
+
+                // Request account access if needed
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+
+                // Create provider
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                
+                // Check if we're on Holesky network (chain ID 17000)
+                const network = await provider.getNetwork();
+                if (network.chainId !== 17000n) {
+                    throw new Error('Please switch to Holesky testnet (Chain ID: 17000)');
+                }
+
+                // Get current block number
+                const blockNumber = await provider.getBlockNumber();
+                
+                // Get additional block info
+                const block = await provider.getBlock(blockNumber);
+                const timestamp = new Date(block.timestamp * 1000);
+
+                // Display result
+                resultDiv.className = 'result';
+                resultDiv.innerHTML = `
+                    <h3>Current Block Information</h3>
+                    <p><strong>Block Height:</strong> ${blockNumber}</p>
+                    <p><strong>Block Hash:</strong> ${block.hash}</p>
+                    <p><strong>Timestamp:</strong> ${timestamp.toLocaleString()}</p>
+                    <p><strong>Network:</strong> Holesky Testnet</p>
+                `;
+
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
+            } finally {
+                // Re-enable button
+                button.disabled = false;
+                button.textContent = 'Get Current Block Height';
+            }
+        }
+
+        // Auto-connect if already connected
+        window.addEventListener('load', async () => {
+            if (window.ethereum) {
+                try {
+                    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                    if (accounts.length > 0) {
+                        console.log('Already connected to MetaMask');
+                    }
+                } catch (error) {
+                    console.error('Error checking connection:', error);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
