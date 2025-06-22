@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERC20 Balance Check</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.1/ethers.umd.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .input-group {
+            margin: 20px 0;
+            text-align: left;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #2196F3;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+        button:hover {
+            background-color: #1976D2;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e3f2fd;
+            border-radius: 5px;
+            border: 1px solid #2196F3;
+        }
+        .error {
+            background-color: #ffe8e8;
+            border: 1px solid #ff4444;
+            color: #cc0000;
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+        .info {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ERC20 Token Balance Check</h1>
+        <p>Check your WhitelistToken (WTK) balance on Holesky testnet.</p>
+        
+        <div class="input-group">
+            <label for="contractAddress">Contract Address:</label>
+            <input type="text" id="contractAddress" placeholder="Enter your WhitelistToken contract address">
+        </div>
+        
+        <button id="checkBalanceBtn" onclick="checkBalance()">Check My Balance</button>
+        
+        <div id="result" style="display: none;"></div>
+        
+        <div id="info" class="result info">
+            <strong>Note:</strong> Make sure you're connected to Holesky testnet and enter your deployed WhitelistToken contract address above.
+        </div>
+    </div>
+
+    <script>
+        // ERC20 ABI - only need balanceOf, name, symbol, decimals functions
+        const ERC20_ABI = [
+            "function balanceOf(address owner) view returns (uint256)",
+            "function name() view returns (string)",
+            "function symbol() view returns (string)",
+            "function decimals() view returns (uint8)"
+        ];
+
+        // Check if MetaMask is installed
+        if (typeof window.ethereum !== 'undefined') {
+            console.log('MetaMask is installed!');
+        } else {
+            alert('MetaMask is not installed. Please install MetaMask to use this application.');
+        }
+
+        async function checkBalance() {
+            const button = document.getElementById('checkBalanceBtn');
+            const resultDiv = document.getElementById('result');
+            const contractAddress = document.getElementById('contractAddress').value.trim();
+            
+            try {
+                // Validate contract address
+                if (!contractAddress) {
+                    throw new Error('Please enter a contract address');
+                }
+                
+                if (!ethers.isAddress(contractAddress)) {
+                    throw new Error('Invalid contract address format');
+                }
+
+                // Disable button and show loading
+                button.disabled = true;
+                button.textContent = 'Checking Balance...';
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result loading';
+                resultDiv.innerHTML = 'Fetching balance information...';
+
+                // Request account access
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const userAddress = accounts[0];
+
+                // Create provider and signer
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                
+                // Check if we're on Holesky network (chain ID 17000)
+                const network = await provider.getNetwork();
+                if (network.chainId !== 17000n) {
+                    throw new Error('Please switch to Holesky testnet (Chain ID: 17000)');
+                }
+
+                // Create contract instance
+                const contract = new ethers.Contract(contractAddress, ERC20_ABI, provider);
+
+                // Get token information
+                const [balance, name, symbol, decimals] = await Promise.all([
+                    contract.balanceOf(userAddress),
+                    contract.name(),
+                    contract.symbol(),
+                    contract.decimals()
+                ]);
+
+                // Format balance
+                const formattedBalance = ethers.formatUnits(balance, decimals);
+
+                // Display result
+                resultDiv.className = 'result';
+                resultDiv.innerHTML = `
+                    <h3>Token Balance Information</h3>
+                    <p><strong>Token Name:</strong> ${name}</p>
+                    <p><strong>Token Symbol:</strong> ${symbol}</p>
+                    <p><strong>Your Address:</strong> ${userAddress}</p>
+                    <p><strong>Balance:</strong> ${formattedBalance} ${symbol}</p>
+                    <p><strong>Raw Balance:</strong> ${balance.toString()}</p>
+                    <p><strong>Decimals:</strong> ${decimals}</p>
+                `;
+
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.className = 'result error';
+                
+                let errorMessage = error.message;
+                if (error.code === 'CALL_EXCEPTION') {
+                    errorMessage = 'Contract call failed. Please check the contract address and ensure it\'s a valid ERC20 token.';
+                }
+                
+                resultDiv.innerHTML = `<strong>Error:</strong> ${errorMessage}`;
+            } finally {
+                // Re-enable button
+                button.disabled = false;
+                button.textContent = 'Check My Balance';
+            }
+        }
+
+        // Auto-connect if already connected
+        window.addEventListener('load', async () => {
+            if (window.ethereum) {
+                try {
+                    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                    if (accounts.length > 0) {
+                        console.log('Connected to MetaMask:', accounts[0]);
+                    }
+                } catch (error) {
+                    console.error('Error checking connection:', error);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
