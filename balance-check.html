@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ERC20 Balance Check</title>
+    <title>Token Balance Checker</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.1/ethers.umd.min.js"></script>
     <style>
         body {
@@ -20,194 +20,125 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             text-align: center;
         }
-        h1 {
-            color: #333;
-            margin-bottom: 30px;
-        }
-        .input-group {
-            margin: 20px 0;
-            text-align: left;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        input {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 14px;
-            box-sizing: border-box;
-        }
         button {
-            background-color: #2196F3;
+            background-color: #28a745;
             color: white;
-            padding: 15px 30px;
             border: none;
+            padding: 15px 30px;
+            font-size: 16px;
             border-radius: 5px;
             cursor: pointer;
-            font-size: 16px;
-            margin: 10px;
+            margin: 20px 0;
         }
         button:hover {
-            background-color: #1976D2;
+            background-color: #218838;
         }
         button:disabled {
-            background-color: #cccccc;
+            background-color: #6c757d;
             cursor: not-allowed;
         }
         .result {
             margin-top: 20px;
             padding: 15px;
-            background-color: #e3f2fd;
+            background-color: #e9ecef;
             border-radius: 5px;
-            border: 1px solid #2196F3;
+            font-size: 18px;
+            font-weight: bold;
         }
         .error {
-            background-color: #ffe8e8;
-            border: 1px solid #ff4444;
-            color: #cc0000;
+            color: #dc3545;
+            background-color: #f8d7da;
         }
-        .loading {
-            color: #666;
-            font-style: italic;
+        .success {
+            color: #155724;
+            background-color: #d4edda;
         }
         .info {
-            background-color: #fff3cd;
-            border: 1px solid #ffc107;
-            color: #856404;
+            font-size: 14px;
+            color: #6c757d;
             margin-bottom: 20px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>ERC20 Token Balance Check</h1>
-        <p>Check your WhitelistToken (WTK) balance on Holesky testnet.</p>
-        
-        <div class="input-group">
-            <label for="contractAddress">Contract Address:</label>
-            <input type="text" id="contractAddress" placeholder="Enter your WhitelistToken contract address">
+        <h1>WhitelistToken Balance Checker</h1>
+        <div class="info">
+            <p>Contract Address: 0x2A8013D693A34e2B6B1ef0d5314BE5B6BEc86D88</p>
+            <p>Checking balance for recipient: 0x15433DA387451F9dE4565280C85506CB71aF9376</p>
         </div>
         
-        <button id="checkBalanceBtn" onclick="checkBalance()">Check My Balance</button>
+        <button id="checkBalance" onclick="checkTokenBalance()">
+            Check Token Balance
+        </button>
         
-        <div id="result" style="display: none;"></div>
-        
-        <div id="info" class="result info">
-            <strong>Note:</strong> Make sure you're connected to Holesky testnet and enter your deployed WhitelistToken contract address above.
-        </div>
+        <div id="result" class="result" style="display: none;"></div>
     </div>
 
     <script>
-        // ERC20 ABI - only need balanceOf, name, symbol, decimals functions
+        // Contract details
+        const TOKEN_CONTRACT_ADDRESS = "0x2A8013D693A34e2B6B1ef0d5314BE5B6BEc86D88";
+        const RECIPIENT_ADDRESS = "0x15433DA387451F9dE4565280C85506CB71aF9376";
+        
+        // ERC20 ABI (only the functions we need)
         const ERC20_ABI = [
             "function balanceOf(address owner) view returns (uint256)",
-            "function name() view returns (string)",
-            "function symbol() view returns (string)",
-            "function decimals() view returns (uint8)"
+            "function decimals() view returns (uint8)",
+            "function symbol() view returns (string)"
         ];
 
-        // Check if MetaMask is installed
-        if (typeof window.ethereum !== 'undefined') {
-            console.log('MetaMask is installed!');
-        } else {
-            alert('MetaMask is not installed. Please install MetaMask to use this application.');
-        }
-
-        async function checkBalance() {
-            const button = document.getElementById('checkBalanceBtn');
+        async function checkTokenBalance() {
+            const button = document.getElementById('checkBalance');
             const resultDiv = document.getElementById('result');
-            const contractAddress = document.getElementById('contractAddress').value.trim();
             
             try {
-                // Validate contract address
-                if (!contractAddress) {
-                    throw new Error('Please enter a contract address');
+                // Disable button during request
+                button.disabled = true;
+                button.textContent = 'Loading...';
+                
+                // Check if MetaMask is installed
+                if (typeof window.ethereum === 'undefined') {
+                    throw new Error('MetaMask is not installed. Please install MetaMask to use this feature.');
                 }
                 
-                if (!ethers.isAddress(contractAddress)) {
-                    throw new Error('Invalid contract address format');
-                }
-
-                // Disable button and show loading
-                button.disabled = true;
-                button.textContent = 'Checking Balance...';
-                resultDiv.style.display = 'block';
-                resultDiv.className = 'result loading';
-                resultDiv.innerHTML = 'Fetching balance information...';
-
-                // Request account access
-                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-                const userAddress = accounts[0];
-
-                // Create provider and signer
+                // Connect to provider
                 const provider = new ethers.BrowserProvider(window.ethereum);
                 
-                // Check if we're on Holesky network (chain ID 17000)
-                const network = await provider.getNetwork();
-                if (network.chainId !== 17000n) {
-                    throw new Error('Please switch to Holesky testnet (Chain ID: 17000)');
-                }
-
+                // Request account access if needed
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                
                 // Create contract instance
-                const contract = new ethers.Contract(contractAddress, ERC20_ABI, provider);
-
-                // Get token information
-                const [balance, name, symbol, decimals] = await Promise.all([
-                    contract.balanceOf(userAddress),
-                    contract.name(),
-                    contract.symbol(),
-                    contract.decimals()
-                ]);
-
-                // Format balance
+                const contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, ERC20_ABI, provider);
+                
+                // Get balance
+                const balance = await contract.balanceOf(RECIPIENT_ADDRESS);
+                const decimals = await contract.decimals();
+                const symbol = await contract.symbol();
+                
+                // Format balance (convert from wei to token units)
                 const formattedBalance = ethers.formatUnits(balance, decimals);
-
+                
                 // Display result
-                resultDiv.className = 'result';
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result success';
                 resultDiv.innerHTML = `
-                    <h3>Token Balance Information</h3>
-                    <p><strong>Token Name:</strong> ${name}</p>
-                    <p><strong>Token Symbol:</strong> ${symbol}</p>
-                    <p><strong>Your Address:</strong> ${userAddress}</p>
-                    <p><strong>Balance:</strong> ${formattedBalance} ${symbol}</p>
-                    <p><strong>Raw Balance:</strong> ${balance.toString()}</p>
-                    <p><strong>Decimals:</strong> ${decimals}</p>
+                    <div>Balance: <strong>${formattedBalance} ${symbol}</strong></div>
+                    <div style="font-size: 12px; margin-top: 10px;">
+                        Raw balance: ${balance.toString()}
+                    </div>
                 `;
-
+                
             } catch (error) {
-                console.error('Error:', error);
+                console.error('Error checking balance:', error);
+                resultDiv.style.display = 'block';
                 resultDiv.className = 'result error';
-                
-                let errorMessage = error.message;
-                if (error.code === 'CALL_EXCEPTION') {
-                    errorMessage = 'Contract call failed. Please check the contract address and ensure it\'s a valid ERC20 token.';
-                }
-                
-                resultDiv.innerHTML = `<strong>Error:</strong> ${errorMessage}`;
+                resultDiv.innerHTML = `Error: ${error.message}`;
             } finally {
                 // Re-enable button
                 button.disabled = false;
-                button.textContent = 'Check My Balance';
+                button.textContent = 'Check Token Balance';
             }
         }
-
-        // Auto-connect if already connected
-        window.addEventListener('load', async () => {
-            if (window.ethereum) {
-                try {
-                    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-                    if (accounts.length > 0) {
-                        console.log('Connected to MetaMask:', accounts[0]);
-                    }
-                } catch (error) {
-                    console.error('Error checking connection:', error);
-                }
-            }
-        });
     </script>
 </body>
 </html>
